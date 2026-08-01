@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -148,21 +150,19 @@ private fun NameEntryScreen(onSave: (String, String) -> Unit, onDismiss: () -> U
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlowRowChips(options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    // Simple wrap using LazyRow-like manual chunking to avoid extra deps
-    val rows = options.chunked(3)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (row in rows) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (opt in row) {
-                    FilterChip(
-                        selected = selected == opt,
-                        onClick = { onSelect(opt) },
-                        label = { Text(opt) }
-                    )
-                }
-            }
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        for (opt in options) {
+            FilterChip(
+                selected = selected == opt,
+                onClick = { onSelect(opt) },
+                label = { Text(opt) }
+            )
         }
     }
 }

@@ -189,9 +189,18 @@ fun HomeScreen(
                     Text(stringResource(R.string.no_points_yet), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
+                val scope = rememberCoroutineScope()
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(points, key = { it.id }) { point ->
-                        PointRow(point = point, onOpenMaps = { MapsUtil.openInMaps(context, point) })
+                        PointRow(
+                            point = point,
+                            onOpenMaps = { MapsUtil.openInMaps(context, point) },
+                            onDelete = {
+                                scope.launch {
+                                    db.geoPointDao().delete(point)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -200,8 +209,10 @@ fun HomeScreen(
 }
 
 @Composable
-fun PointRow(point: GeoPoint, onOpenMaps: () -> Unit) {
+fun PointRow(point: GeoPoint, onOpenMaps: () -> Unit, onDelete: () -> Unit) {
     val dateFmt = remember { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale("fa")) }
+    var showConfirmDelete by remember { mutableStateOf(false) }
+
     Card(shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -224,6 +235,26 @@ fun PointRow(point: GeoPoint, onOpenMaps: () -> Unit) {
             IconButton(onClick = onOpenMaps) {
                 Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.open_in_maps))
             }
+            IconButton(onClick = { showConfirmDelete = true }) {
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
+            }
         }
+    }
+
+    if (showConfirmDelete) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDelete = false },
+            title = { Text(stringResource(R.string.delete)) },
+            text = { Text("این نقطه حذف شود؟ (${point.name.ifBlank { "بدون نام" }})") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConfirmDelete = false
+                    onDelete()
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDelete = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 }
