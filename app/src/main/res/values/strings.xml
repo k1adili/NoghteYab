@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">نقطه‌یاب</string>
+    <string name="quick_save">ذخیره اینجا</string>
+    <string name="point_saved">نقطه ذخیره شد</string>
+    <string name="tap_to_name_it">برای نامگذاری ضربه بزنید</string>
+    <string name="location_permission_needed">برای ذخیره سریع، دسترسی موقعیت مکانی لازم است</string>
+    <string name="location_not_found">موقعیت مکانی پیدا نشد. دوباره تلاش کنید</string>
+    <string name="search_hint">جستجو بر اساس اسم یا دسته‌بندی</string>
+    <string name="current_location">موقعیت فعلی</string>
+    <string name="start_tracking">شروع ردیابی</string>
+    <string name="stop_tracking">توقف ردیابی</string>
+    <string name="no_points_yet">هنوز نقطه‌ای ذخیره نشده است</string>
+    <string name="backup_export">پشتیبان‌گیری</string>
+    <string name="backup_import">بازیابی</string>
+    <string name="open_in_maps">باز کردن در گوگل‌مپ</string>
+    <string name="share">اشتراک‌گذاری</string>
+    <string name="delete">حذف</string>
+    <string name="edit">ویرایش</string>
+    <string name="save">ذخیره</string>
+    <string name="cancel">انصراف</string>
+</resources>
