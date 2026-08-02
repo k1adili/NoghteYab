@@ -5,8 +5,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -19,15 +19,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import ir.keyvanadili.noghteyab.R
 import ir.keyvanadili.noghteyab.data.AppDatabase
-import ir.keyvanadili.noghteyab.data.GeoPoint
 import ir.keyvanadili.noghteyab.ui.theme.NoghteYabTheme
+import ir.keyvanadili.noghteyab.util.DEFAULT_CATEGORIES
 import kotlinx.coroutines.launch
-
-private val DEFAULT_CATEGORIES = listOf("مغازه", "رستوران", "تعمیرگاه", "سوپرمارکت", "داروخانه", "پمپ بنزین", "سایر")
 
 class NameEntryActivity : ComponentActivity() {
 
@@ -40,7 +40,8 @@ class NameEntryActivity : ComponentActivity() {
 
         setContent {
             NoghteYabTheme {
-                NameEntryScreen(
+                NameEntryRoot(
+                    pointId = pointId,
                     onSave = { name, category -> savePoint(name, category) },
                     onDismiss = { finish() }
                 )
@@ -64,11 +65,54 @@ class NameEntryActivity : ComponentActivity() {
     }
 }
 
+@Composable
+private fun NameEntryRoot(pointId: Long, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getInstance(context) }
+
+    var loaded by remember { mutableStateOf(false) }
+    var initialName by remember { mutableStateOf("") }
+    var initialCategory by remember { mutableStateOf("") }
+    var categories by remember { mutableStateOf(listOf<String>()) }
+
+    LaunchedEffect(pointId) {
+        val point = db.geoPointDao().getById(pointId)
+        initialName = point?.name.orEmpty()
+        initialCategory = point?.category.orEmpty()
+
+        db.categoryDao().seedDefaultsIfEmpty(DEFAULT_CATEGORIES)
+        val stored = db.categoryDao().getAllOnce().map { it.name }
+        categories = stored.ifEmpty { DEFAULT_CATEGORIES }
+
+        loaded = true
+    }
+
+    if (!loaded) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        NameEntryScreen(
+            initialName = initialName,
+            initialCategory = initialCategory,
+            categories = categories,
+            onSave = onSave,
+            onDismiss = onDismiss
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NameEntryScreen(onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
+private fun NameEntryScreen(
+    initialName: String,
+    initialCategory: String,
+    categories: List<String>,
+    onSave: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var category by remember { mutableStateOf(initialCategory) }
 
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -101,7 +145,7 @@ private fun NameEntryScreen(onSave: (String, String) -> Unit, onDismiss: () -> U
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource_point_saved(), style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.point_details), style = MaterialTheme.typography.titleLarge)
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Filled.Close, contentDescription = null)
                     }
@@ -127,7 +171,7 @@ private fun NameEntryScreen(onSave: (String, String) -> Unit, onDismiss: () -> U
                 Spacer(Modifier.height(8.dp))
 
                 FlowRowChips(
-                    options = DEFAULT_CATEGORIES,
+                    options = categories,
                     selected = category,
                     onSelect = { category = it }
                 )
@@ -165,9 +209,4 @@ private fun FlowRowChips(options: List<String>, selected: String, onSelect: (Str
             )
         }
     }
-}
-
-@Composable
-private fun stringResource_point_saved(): String {
-    return androidx.compose.ui.res.stringResource(R.string.point_saved)
 }
