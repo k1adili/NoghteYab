@@ -2,12 +2,13 @@
 <resources>
     <string name="app_name">نقطه‌یاب</string>
     <string name="quick_save">ذخیره اینجا</string>
+    <string name="add_point">افزودن نقطه</string>
     <string name="point_saved">نقطه ذخیره شد</string>
     <string name="point_details">جزئیات نقطه</string>
     <string name="tap_to_name_it">برای نامگذاری ضربه بزنید</string>
     <string name="location_permission_needed">برای ذخیره سریع، دسترسی موقعیت مکانی لازم است</string>
     <string name="location_not_found">موقعیت مکانی پیدا نشد. دوباره تلاش کنید</string>
-    <string name="search_hint">جستجو بر اساس اسم یا دسته‌بندی</string>
+    <string name="search_hint">جستجو</string>
     <string name="current_location">موقعیت فعلی</string>
     <string name="start_tracking">شروع ردیابی</string>
     <string name="stop_tracking">توقف ردیابی</string>
