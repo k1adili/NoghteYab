@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,18 +38,31 @@ import ir.keyvanadili.noghteyab.data.AppDatabase
 import ir.keyvanadili.noghteyab.data.GeoPoint
 import ir.keyvanadili.noghteyab.service.LocationRepository
 import ir.keyvanadili.noghteyab.service.LocationTrackingService
+import ir.keyvanadili.noghteyab.ui.theme.AppButtonShape
 import ir.keyvanadili.noghteyab.ui.theme.NoghteYabTheme
 import ir.keyvanadili.noghteyab.util.BackupManager
+import ir.keyvanadili.noghteyab.util.LocationUtil
 import ir.keyvanadili.noghteyab.util.MapsUtil
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+private enum class PendingAction { TRACK, QUICK_ADD }
+
 class MainActivity : ComponentActivity() {
+
+    private var pendingAction: PendingAction? = null
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) startLocationService()
+        if (granted) {
+            when (pendingAction) {
+                PendingAction.TRACK -> startLocationService()
+                PendingAction.QUICK_ADD -> addPointQuick()
+                null -> {}
+            }
+        }
+        pendingAction = null
     }
 
     private val exportLauncher = registerForActivityResult(
@@ -88,7 +102,8 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 onOpenSettings = { navController.navigate("settings") },
                                 onRequestTracking = { ensurePermissionAndTrack() },
-                                onStopTracking = { stopLocationService() }
+                                onStopTracking = { stopLocationService() },
+                                onAddPoint = { ensurePermissionAndQuickAdd() }
                             )
                         }
                         composable("settings") {
@@ -104,14 +119,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun hasLocationPermission(): Boolean = ContextCompat.checkSelfPermission(
+        this, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     private fun ensurePermissionAndTrack() {
-        val granted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (granted) {
+        if (hasLocationPermission()) {
             startLocationService()
         } else {
+            pendingAction = PendingAction.TRACK
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun ensurePermissionAndQuickAdd() {
+        if (hasLocationPermission()) {
+            addPointQuick()
+        } else {
+            pendingAction = PendingAction.QUICK_ADD
+            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    /** Same "capture now, name later" flow as the widget, triggered from inside the app. */
+    private fun addPointQuick() {
+        lifecycleScope.launch {
+            val location = LocationUtil.getQuickLocation(this@MainActivity)
+            if (location == null) {
+                Toast.makeText(this@MainActivity, getString(R.string.location_not_found), Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val dao = AppDatabase.getInstance(this@MainActivity).geoPointDao()
+            val newId = dao.insert(
+                GeoPoint(
+                    name = "",
+                    category = "",
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+            startActivity(
+                Intent(this@MainActivity, NameEntryActivity::class.java)
+                    .putExtra(NameEntryActivity.EXTRA_POINT_ID, newId)
+            )
         }
     }
 
@@ -134,7 +185,8 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onOpenSettings: () -> Unit,
     onRequestTracking: () -> Unit,
-    onStopTracking: () -> Unit
+    onStopTracking: () -> Unit,
+    onAddPoint: () -> Unit
 ) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -160,11 +212,16 @@ fun HomeScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onAddPoint, shape = AppButtonShape) {
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_point))
+            }
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
 
-            // Current location card
+            // Current location card — single line for lat/lng to keep it compact
             Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
@@ -178,8 +235,11 @@ fun HomeScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     if (location != null) {
-                        Text("Lat: ${"%.6f".format(location!!.latitude)}")
-                        Text("Lng: ${"%.6f".format(location!!.longitude)}")
+                        Text(
+                            "Lat: ${"%.6f".format(location!!.latitude)}   Lng: ${"%.6f".format(location!!.longitude)}",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     } else {
                         Text(if (isTracking) "در حال دریافت..." else "ردیابی غیرفعال است")
                     }
@@ -254,12 +314,24 @@ fun PointRow(point: GeoPoint, onOpenMaps: () -> Unit, onEdit: () -> Unit, onDele
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     point.name.ifBlank { "بدون نام" },
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (point.category.isNotBlank()) {
-                    Text(point.category, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        point.category,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                Text(coordsText, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    coordsText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             IconButton(onClick = onEdit) {
                 Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit))

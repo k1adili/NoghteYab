@@ -13,10 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ir.keyvanadili.noghteyab.data.AppDatabase
 import ir.keyvanadili.noghteyab.data.CategoryEntity
+import ir.keyvanadili.noghteyab.ui.theme.AppButtonShape
 import ir.keyvanadili.noghteyab.util.DEFAULT_CATEGORIES
 import kotlinx.coroutines.launch
 
@@ -62,15 +64,25 @@ fun SettingsScreen(
                     Text("پشتیبان‌گیری", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = onExport, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Filled.Upload, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("گرفتن بک‌آپ")
+                        OutlinedButton(
+                            onClick = onExport,
+                            shape = AppButtonShape,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("بک‌آپ", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Filled.Download, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("بازیابی")
+                        OutlinedButton(
+                            onClick = onImport,
+                            shape = AppButtonShape,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("بازیابی", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -92,7 +104,7 @@ fun SettingsScreen(
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
-                        Button(onClick = {
+                        Button(shape = AppButtonShape, onClick = {
                             val name = newCategory.trim()
                             if (name.isNotEmpty()) {
                                 scope.launch {

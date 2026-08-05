@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import ir.keyvanadili.noghteyab.R
 import ir.keyvanadili.noghteyab.data.AppDatabase
+import ir.keyvanadili.noghteyab.ui.theme.AppButtonShape
 import ir.keyvanadili.noghteyab.ui.theme.NoghteYabTheme
 import ir.keyvanadili.noghteyab.util.DEFAULT_CATEGORIES
 import kotlinx.coroutines.launch
@@ -179,11 +180,12 @@ private fun NameEntryScreen(
                 Spacer(Modifier.height(20.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onDismiss, shape = AppButtonShape, modifier = Modifier.weight(1f)) {
                         Text("بعداً")
                     }
                     Button(
                         onClick = { onSave(name, category) },
+                        shape = AppButtonShape,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("ذخیره")
