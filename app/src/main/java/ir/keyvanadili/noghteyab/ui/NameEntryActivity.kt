@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
@@ -21,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import ir.keyvanadili.noghteyab.R
@@ -43,19 +46,26 @@ class NameEntryActivity : ComponentActivity() {
             NoghteYabTheme {
                 NameEntryRoot(
                     pointId = pointId,
-                    onSave = { name, category -> savePoint(name, category) },
+                    onSave = { name, category, lat, lng -> savePoint(name, category, lat, lng) },
                     onDismiss = { finish() }
                 )
             }
         }
     }
 
-    private fun savePoint(name: String, category: String) {
+    private fun savePoint(name: String, category: String, latitude: Double, longitude: Double) {
         lifecycleScope.launch {
             val dao = AppDatabase.getInstance(this@NameEntryActivity).geoPointDao()
             val existing = dao.getById(pointId)
             if (existing != null) {
-                dao.update(existing.copy(name = name.ifBlank { "نقطه بدون نام" }, category = category))
+                dao.update(
+                    existing.copy(
+                        name = name.ifBlank { "نقطه بدون نام" },
+                        category = category,
+                        latitude = latitude,
+                        longitude = longitude
+                    )
+                )
             }
             finish()
         }
@@ -67,19 +77,27 @@ class NameEntryActivity : ComponentActivity() {
 }
 
 @Composable
-private fun NameEntryRoot(pointId: Long, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+private fun NameEntryRoot(
+    pointId: Long,
+    onSave: (String, String, Double, Double) -> Unit,
+    onDismiss: () -> Unit
+) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
 
     var loaded by remember { mutableStateOf(false) }
     var initialName by remember { mutableStateOf("") }
     var initialCategory by remember { mutableStateOf("") }
+    var initialLat by remember { mutableStateOf(0.0) }
+    var initialLng by remember { mutableStateOf(0.0) }
     var categories by remember { mutableStateOf(listOf<String>()) }
 
     LaunchedEffect(pointId) {
         val point = db.geoPointDao().getById(pointId)
         initialName = point?.name.orEmpty()
         initialCategory = point?.category.orEmpty()
+        initialLat = point?.latitude ?: 0.0
+        initialLng = point?.longitude ?: 0.0
 
         db.categoryDao().seedDefaultsIfEmpty(DEFAULT_CATEGORIES)
         val stored = db.categoryDao().getAllOnce().map { it.name }
@@ -96,6 +114,8 @@ private fun NameEntryRoot(pointId: Long, onSave: (String, String) -> Unit, onDis
         NameEntryScreen(
             initialName = initialName,
             initialCategory = initialCategory,
+            initialLat = initialLat,
+            initialLng = initialLng,
             categories = categories,
             onSave = onSave,
             onDismiss = onDismiss
@@ -108,12 +128,17 @@ private fun NameEntryRoot(pointId: Long, onSave: (String, String) -> Unit, onDis
 private fun NameEntryScreen(
     initialName: String,
     initialCategory: String,
+    initialLat: Double,
+    initialLng: Double,
     categories: List<String>,
-    onSave: (String, String) -> Unit,
+    onSave: (String, String, Double, Double) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf(initialName) }
     var category by remember { mutableStateOf(initialCategory) }
+    var latText by remember { mutableStateOf("%.6f".format(initialLat)) }
+    var lngText by remember { mutableStateOf("%.6f".format(initialLng)) }
 
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -133,6 +158,16 @@ private fun NameEntryScreen(
             putExtra(RecognizerIntent.EXTRA_PROMPT, "اسم مکان را بگویید")
         }
         speechLauncher.launch(intent)
+    }
+
+    fun attemptSave() {
+        val lat = latText.toDoubleOrNull()
+        val lng = lngText.toDoubleOrNull()
+        if (lat == null || lng == null) {
+            Toast.makeText(context, "مختصات نامعتبر است", Toast.LENGTH_SHORT).show()
+            return
+        }
+        onSave(name, category, lat, lng)
     }
 
     Box(
@@ -168,6 +203,29 @@ private fun NameEntryScreen(
                 )
 
                 Spacer(Modifier.height(16.dp))
+                Text("مختصات", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = latText,
+                        onValueChange = { latText = it },
+                        label = { Text("Lat") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = lngText,
+                        onValueChange = { lngText = it },
+                        label = { Text("Lng") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
                 Text("دسته‌بندی", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(8.dp))
 
@@ -184,7 +242,7 @@ private fun NameEntryScreen(
                         Text("بعداً")
                     }
                     Button(
-                        onClick = { onSave(name, category) },
+                        onClick = { attemptSave() },
                         shape = AppButtonShape,
                         modifier = Modifier.weight(1f)
                     ) {
