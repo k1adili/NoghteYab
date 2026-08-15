@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -100,20 +101,26 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = newCategory,
                             onValueChange = { newCategory = it },
-                            label = { Text("دسته‌بندی جدید") },
+                            placeholder = { Text("دسته‌بندی جدید", style = MaterialTheme.typography.bodySmall) },
+                            textStyle = MaterialTheme.typography.bodyMedium,
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).height(48.dp)
                         )
-                        Button(shape = AppButtonShape, onClick = {
-                            val name = newCategory.trim()
-                            if (name.isNotEmpty()) {
-                                scope.launch {
-                                    db.categoryDao().insert(CategoryEntity(name = name))
+                        Button(
+                            shape = AppButtonShape,
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            modifier = Modifier.height(48.dp),
+                            onClick = {
+                                val name = newCategory.trim()
+                                if (name.isNotEmpty()) {
+                                    scope.launch {
+                                        db.categoryDao().insert(CategoryEntity(name = name))
+                                    }
+                                    newCategory = ""
                                 }
-                                newCategory = ""
                             }
-                        }) {
-                            Text("افزودن")
+                        ) {
+                            Text("افزودن", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
 
@@ -137,6 +144,23 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = "طراحی و توسعه: کیوان عدیلی",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Version 2.1",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
