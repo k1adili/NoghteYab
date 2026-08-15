@@ -22,8 +22,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import ir.keyvanadili.noghteyab.R
@@ -137,8 +139,7 @@ private fun NameEntryScreen(
     val context = LocalContext.current
     var name by remember { mutableStateOf(initialName) }
     var category by remember { mutableStateOf(initialCategory) }
-    var latText by remember { mutableStateOf("%.6f".format(initialLat)) }
-    var lngText by remember { mutableStateOf("%.6f".format(initialLng)) }
+    var latLngText by remember { mutableStateOf("%.6f, %.6f".format(initialLat, initialLng)) }
 
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -161,8 +162,9 @@ private fun NameEntryScreen(
     }
 
     fun attemptSave() {
-        val lat = latText.toDoubleOrNull()
-        val lng = lngText.toDoubleOrNull()
+        val parts = latLngText.split(",").map { it.trim() }
+        val lat = parts.getOrNull(0)?.toDoubleOrNull()
+        val lng = parts.getOrNull(1)?.toDoubleOrNull()
         if (lat == null || lng == null) {
             Toast.makeText(context, "مختصات نامعتبر است", Toast.LENGTH_SHORT).show()
             return
@@ -207,22 +209,16 @@ private fun NameEntryScreen(
                 Spacer(Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = latText,
-                        onValueChange = { latText = it },
-                        label = { Text("Lat") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = lngText,
-                        onValueChange = { lngText = it },
-                        label = { Text("Lng") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.weight(1f)
-                    )
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        OutlinedTextField(
+                            value = latLngText,
+                            onValueChange = { latLngText = it },
+                            label = { Text("Lat, Lng") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
