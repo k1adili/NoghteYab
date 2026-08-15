@@ -35,6 +35,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ir.keyvanadili.noghteyab.R
 import ir.keyvanadili.noghteyab.data.AppDatabase
+import ir.keyvanadili.noghteyab.data.CategoryEntity
 import ir.keyvanadili.noghteyab.data.GeoPoint
 import ir.keyvanadili.noghteyab.service.LocationRepository
 import ir.keyvanadili.noghteyab.service.LocationTrackingService
@@ -70,9 +71,10 @@ class MainActivity : ComponentActivity() {
     ) { uri: Uri? ->
         if (uri != null) {
             lifecycleScope.launch {
-                val dao = AppDatabase.getInstance(this@MainActivity).geoPointDao()
-                val points = dao.getAllOnce()
-                val json = BackupManager.toJson(points)
+                val db = AppDatabase.getInstance(this@MainActivity)
+                val points = db.geoPointDao().getAllOnce()
+                val categories = db.categoryDao().getAllOnce().map { it.name }
+                val json = BackupManager.toJson(points, categories)
                 BackupManager.writeToUri(this@MainActivity, uri, json)
             }
         }
@@ -84,9 +86,10 @@ class MainActivity : ComponentActivity() {
         if (uri != null) {
             lifecycleScope.launch {
                 val json = BackupManager.readFromUri(this@MainActivity, uri)
-                val points = BackupManager.fromJson(json)
-                val dao = AppDatabase.getInstance(this@MainActivity).geoPointDao()
-                points.forEach { dao.insert(it) }
+                val backup = BackupManager.fromJson(json)
+                val db = AppDatabase.getInstance(this@MainActivity)
+                backup.points.forEach { db.geoPointDao().insert(it) }
+                backup.categories.forEach { db.categoryDao().insert(CategoryEntity(name = it)) }
             }
         }
     }
