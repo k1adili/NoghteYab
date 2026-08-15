@@ -309,41 +309,49 @@ fun PointRow(point: GeoPoint, onOpenMaps: () -> Unit, onEdit: () -> Unit, onDele
                 }
             )
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    point.name.ifBlank { "بدون نام" },
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (point.category.isNotBlank()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Text(
+                point.name.ifBlank { "بدون نام" },
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    if (point.category.isNotBlank()) {
+                        Text(
+                            point.category,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Text(
-                        point.category,
+                        coordsText,
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text(
-                    coordsText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit))
-            }
-            IconButton(onClick = onOpenMaps) {
-                Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.open_in_maps))
-            }
-            IconButton(onClick = { showConfirmDelete = true }) {
-                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit))
+                    }
+                    IconButton(onClick = onOpenMaps) {
+                        Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.open_in_maps))
+                    }
+                    IconButton(onClick = { showConfirmDelete = true }) {
+                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
+                    }
+                }
             }
         }
     }
