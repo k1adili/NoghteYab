@@ -16,7 +16,6 @@ object MapsUtil {
         if (intent.resolveActivity(context.packageManager) != null) {
             context.startActivity(intent)
         } else {
-            // Fallback: no Google Maps installed, use generic geo intent
             context.startActivity(Intent(Intent.ACTION_VIEW, uri))
         }
     }

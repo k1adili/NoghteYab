@@ -67,7 +67,6 @@ class QuickSaveWidgetProvider : AppWidgetProvider() {
                 )
                 val newId = dao.insert(point)
 
-                // Open the lightweight naming screen right away on top of whatever is on screen
                 val nameIntent = Intent(context, NameEntryActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtra(NameEntryActivity.EXTRA_POINT_ID, newId)

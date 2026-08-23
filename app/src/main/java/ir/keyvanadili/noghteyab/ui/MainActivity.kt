@@ -37,6 +37,7 @@ import ir.keyvanadili.noghteyab.R
 import ir.keyvanadili.noghteyab.data.AppDatabase
 import ir.keyvanadili.noghteyab.data.CategoryEntity
 import ir.keyvanadili.noghteyab.data.GeoPoint
+import ir.keyvanadili.noghteyab.data.TrackEntity
 import ir.keyvanadili.noghteyab.service.LocationRepository
 import ir.keyvanadili.noghteyab.service.LocationTrackingService
 import ir.keyvanadili.noghteyab.ui.theme.AppButtonShape
@@ -44,10 +45,14 @@ import ir.keyvanadili.noghteyab.ui.theme.NoghteYabTheme
 import ir.keyvanadili.noghteyab.util.BackupManager
 import ir.keyvanadili.noghteyab.util.LocationUtil
 import ir.keyvanadili.noghteyab.util.MapsUtil
+import ir.keyvanadili.noghteyab.util.TrackUtil
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-private enum class PendingAction { TRACK, QUICK_ADD }
+private enum class PendingAction { TRACK_LOCATION, QUICK_ADD, RECORD }
 
 class MainActivity : ComponentActivity() {
 
@@ -58,8 +63,9 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         if (granted) {
             when (pendingAction) {
-                PendingAction.TRACK -> startLocationService()
+                PendingAction.TRACK_LOCATION -> startLocationService()
                 PendingAction.QUICK_ADD -> addPointQuick()
+                PendingAction.RECORD -> startRecordingTrack()
                 null -> {}
             }
         }
@@ -104,9 +110,12 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 onOpenSettings = { navController.navigate("settings") },
-                                onRequestTracking = { ensurePermissionAndTrack() },
+                                onOpenTracks = { navController.navigate("tracks") },
+                                onRequestTracking = { ensurePermissionAndTrackLocation() },
                                 onStopTracking = { stopLocationService() },
-                                onAddPoint = { ensurePermissionAndQuickAdd() }
+                                onAddPoint = { ensurePermissionAndQuickAdd() },
+                                onRequestRecording = { ensurePermissionAndRecord() },
+                                onStopRecording = { stopRecordingTrack() }
                             )
                         }
                         composable("settings") {
@@ -115,6 +124,9 @@ class MainActivity : ComponentActivity() {
                                 onExport = { exportLauncher.launch(BackupManager.defaultFileName()) },
                                 onImport = { importLauncher.launch(arrayOf("application/json")) }
                             )
+                        }
+                        composable("tracks") {
+                            TracksScreen(onBack = { navController.popBackStack() })
                         }
                     }
                 }
@@ -126,11 +138,11 @@ class MainActivity : ComponentActivity() {
         this, Manifest.permission.ACCESS_FINE_LOCATION
     ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
-    private fun ensurePermissionAndTrack() {
+    private fun ensurePermissionAndTrackLocation() {
         if (hasLocationPermission()) {
             startLocationService()
         } else {
-            pendingAction = PendingAction.TRACK
+            pendingAction = PendingAction.TRACK_LOCATION
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
@@ -140,6 +152,15 @@ class MainActivity : ComponentActivity() {
             addPointQuick()
         } else {
             pendingAction = PendingAction.QUICK_ADD
+            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun ensurePermissionAndRecord() {
+        if (hasLocationPermission()) {
+            startRecordingTrack()
+        } else {
+            pendingAction = PendingAction.RECORD
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
@@ -181,21 +202,50 @@ class MainActivity : ComponentActivity() {
     private fun stopLocationService() {
         stopService(Intent(this, LocationTrackingService::class.java))
     }
+
+    private fun startRecordingTrack() {
+        // Recording needs the location service running; starting it is harmless if already up.
+        startLocationService()
+        lifecycleScope.launch {
+            val name = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale("fa")).format(Date())
+            val db = AppDatabase.getInstance(this@MainActivity)
+            val trackId = db.trackDao().insertTrack(
+                TrackEntity(name = name, startTime = System.currentTimeMillis())
+            )
+            LocationRepository.startRecording(trackId)
+        }
+    }
+
+    private fun stopRecordingTrack() {
+        val trackId = LocationRepository.currentTrackId.value
+        LocationRepository.stopRecording()
+        if (trackId == null) return
+        lifecycleScope.launch {
+            val db = AppDatabase.getInstance(this@MainActivity)
+            val points = db.trackDao().getPointsOnce(trackId)
+            val distance = TrackUtil.totalDistanceMeters(points)
+            db.trackDao().finishTrack(trackId, System.currentTimeMillis(), distance)
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onOpenSettings: () -> Unit,
+    onOpenTracks: () -> Unit,
     onRequestTracking: () -> Unit,
     onStopTracking: () -> Unit,
-    onAddPoint: () -> Unit
+    onAddPoint: () -> Unit,
+    onRequestRecording: () -> Unit,
+    onStopRecording: () -> Unit
 ) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
     var query by remember { mutableStateOf("") }
     var points by remember { mutableStateOf(listOf<GeoPoint>()) }
     val isTracking by LocationRepository.isTracking.collectAsStateWithLifecycle()
+    val isRecording by LocationRepository.isRecording.collectAsStateWithLifecycle()
     val location by LocationRepository.currentLocation.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
@@ -210,6 +260,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onOpenTracks) {
+                        Icon(Icons.Filled.Route, contentDescription = "مسیرها")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "تنظیمات")
                     }
@@ -246,6 +299,31 @@ fun HomeScreen(
                     } else {
                         Text(if (isTracking) "در حال دریافت..." else "ردیابی غیرفعال است")
                     }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Track recording card
+            Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("ضبط مسیر", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (isRecording) "در حال ضبط..." else "مسیر طی‌شده رو ذخیره کن",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Switch(
+                        checked = isRecording,
+                        onCheckedChange = { checked ->
+                            if (checked) onRequestRecording() else onStopRecording()
+                        }
+                    )
                 }
             }
 

@@ -21,7 +21,7 @@ object LocationUtil {
 
     /**
      * Fetches the current location as fast as possible.
-     * Used by the widget for near-instant "quick save".
+     * Used by the widget and in-app add button for near-instant "quick save".
      */
     @SuppressLint("MissingPermission")
     suspend fun getQuickLocation(context: Context): android.location.Location? {
