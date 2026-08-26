@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -38,6 +39,7 @@ import ir.keyvanadili.noghteyab.data.AppDatabase
 import ir.keyvanadili.noghteyab.data.CategoryEntity
 import ir.keyvanadili.noghteyab.data.GeoPoint
 import ir.keyvanadili.noghteyab.data.TrackEntity
+import ir.keyvanadili.noghteyab.data.TrackPointEntity
 import ir.keyvanadili.noghteyab.service.LocationRepository
 import ir.keyvanadili.noghteyab.service.LocationTrackingService
 import ir.keyvanadili.noghteyab.ui.theme.AppButtonShape
@@ -45,6 +47,8 @@ import ir.keyvanadili.noghteyab.ui.theme.NoghteYabTheme
 import ir.keyvanadili.noghteyab.util.BackupManager
 import ir.keyvanadili.noghteyab.util.LocationUtil
 import ir.keyvanadili.noghteyab.util.MapsUtil
+import ir.keyvanadili.noghteyab.util.TrackBackup
+import ir.keyvanadili.noghteyab.util.TrackPointBackup
 import ir.keyvanadili.noghteyab.util.TrackUtil
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -80,7 +84,23 @@ class MainActivity : ComponentActivity() {
                 val db = AppDatabase.getInstance(this@MainActivity)
                 val points = db.geoPointDao().getAllOnce()
                 val categories = db.categoryDao().getAllOnce().map { it.name }
-                val json = BackupManager.toJson(points, categories)
+                val tracks = db.trackDao().getAllTracksOnce().map { t ->
+                    val trackPoints = db.trackDao().getPointsOnce(t.id).map { p ->
+                        TrackPointBackup(
+                            latitude = p.latitude,
+                            longitude = p.longitude,
+                            timestamp = p.timestamp
+                        )
+                    }
+                    TrackBackup(
+                        name = t.name,
+                        startTime = t.startTime,
+                        endTime = t.endTime,
+                        distanceMeters = t.distanceMeters,
+                        points = trackPoints
+                    )
+                }
+                val json = BackupManager.toJson(points, categories, tracks)
                 BackupManager.writeToUri(this@MainActivity, uri, json)
             }
         }
@@ -96,6 +116,26 @@ class MainActivity : ComponentActivity() {
                 val db = AppDatabase.getInstance(this@MainActivity)
                 backup.points.forEach { db.geoPointDao().insert(it) }
                 backup.categories.forEach { db.categoryDao().insert(CategoryEntity(name = it)) }
+                backup.tracks.forEach { trackBackup ->
+                    val newTrackId = db.trackDao().insertTrack(
+                        TrackEntity(
+                            name = trackBackup.name,
+                            startTime = trackBackup.startTime,
+                            endTime = trackBackup.endTime,
+                            distanceMeters = trackBackup.distanceMeters
+                        )
+                    )
+                    trackBackup.points.forEach { p ->
+                        db.trackDao().insertPoint(
+                            TrackPointEntity(
+                                trackId = newTrackId,
+                                latitude = p.latitude,
+                                longitude = p.longitude,
+                                timestamp = p.timestamp
+                            )
+                        )
+                    }
+                }
             }
         }
     }
@@ -277,53 +317,91 @@ fun HomeScreen(
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
 
-            // Current location card — single line for lat/lng to keep it compact
-            Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.current_location), style = MaterialTheme.typography.titleMedium)
-                        Switch(
-                            checked = isTracking,
-                            onCheckedChange = { checked ->
-                                if (checked) onRequestTracking() else onStopTracking()
-                            }
-                        )
+            // Current location + track recording, side by side to save vertical space
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                stringResource(R.string.current_location),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = isTracking,
+                                onCheckedChange = { checked ->
+                                    if (checked) onRequestTracking() else onStopTracking()
+                                },
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        if (location != null) {
+                            Text(
+                                "${"%.4f".format(location!!.latitude)}, ${"%.4f".format(location!!.longitude)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            Text(
+                                if (isTracking) "در حال دریافت..." else "غیرفعال",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    if (location != null) {
+                }
+
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "ضبط مسیر",
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = isRecording,
+                                onCheckedChange = { checked ->
+                                    if (checked) onRequestRecording() else onStopRecording()
+                                },
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            "Lat: ${"%.6f".format(location!!.latitude)}   Lng: ${"%.6f".format(location!!.longitude)}",
+                            if (isRecording) "در حال ضبط..." else "غیرفعال",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                    } else {
-                        Text(if (isTracking) "در حال دریافت..." else "ردیابی غیرفعال است")
                     }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Track recording card
-            Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("ضبط مسیر", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            if (isRecording) "در حال ضبط..." else "مسیر طی‌شده رو ذخیره کن",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Switch(
-                        checked = isRecording,
-                        onCheckedChange = { checked ->
-                            if (checked) onRequestRecording() else onStopRecording()
-                        }
-                    )
                 }
             }
 
