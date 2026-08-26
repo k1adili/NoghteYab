@@ -6,14 +6,29 @@ import ir.keyvanadili.noghteyab.data.GeoPoint
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class TrackPointBackup(
+    val latitude: Double,
+    val longitude: Double,
+    val timestamp: Long
+)
+
+data class TrackBackup(
+    val name: String,
+    val startTime: Long,
+    val endTime: Long?,
+    val distanceMeters: Double,
+    val points: List<TrackPointBackup>
+)
+
 data class BackupData(
     val points: List<GeoPoint>,
-    val categories: List<String>
+    val categories: List<String>,
+    val tracks: List<TrackBackup>
 )
 
 object BackupManager {
 
-    fun toJson(points: List<GeoPoint>, categories: List<String>): String {
+    fun toJson(points: List<GeoPoint>, categories: List<String>, tracks: List<TrackBackup>): String {
         val pointsArr = JSONArray()
         for (p in points) {
             val obj = JSONObject()
@@ -31,11 +46,31 @@ object BackupManager {
             categoriesArr.put(c)
         }
 
+        val tracksArr = JSONArray()
+        for (t in tracks) {
+            val trackObj = JSONObject()
+            trackObj.put("name", t.name)
+            trackObj.put("startTime", t.startTime)
+            if (t.endTime != null) trackObj.put("endTime", t.endTime)
+            trackObj.put("distanceMeters", t.distanceMeters)
+            val pointsArrJson = JSONArray()
+            for (p in t.points) {
+                val pObj = JSONObject()
+                pObj.put("latitude", p.latitude)
+                pObj.put("longitude", p.longitude)
+                pObj.put("timestamp", p.timestamp)
+                pointsArrJson.put(pObj)
+            }
+            trackObj.put("points", pointsArrJson)
+            tracksArr.put(trackObj)
+        }
+
         val root = JSONObject()
         root.put("app", "NoghteYab")
-        root.put("version", 2)
+        root.put("version", 3)
         root.put("points", pointsArr)
         root.put("categories", categoriesArr)
+        root.put("tracks", tracksArr)
         return root.toString(2)
     }
 
@@ -69,7 +104,38 @@ object BackupManager {
             categories.addAll(points.mapNotNull { it.category.ifBlank { null } }.distinct())
         }
 
-        return BackupData(points = points, categories = categories.filter { it.isNotBlank() }.distinct())
+        val tracksArrJson = root.optJSONArray("tracks") ?: JSONArray()
+        val tracks = mutableListOf<TrackBackup>()
+        for (i in 0 until tracksArrJson.length()) {
+            val tObj = tracksArrJson.getJSONObject(i)
+            val trackPointsArr = tObj.optJSONArray("points") ?: JSONArray()
+            val trackPoints = mutableListOf<TrackPointBackup>()
+            for (j in 0 until trackPointsArr.length()) {
+                val pObj = trackPointsArr.getJSONObject(j)
+                trackPoints.add(
+                    TrackPointBackup(
+                        latitude = pObj.optDouble("latitude", 0.0),
+                        longitude = pObj.optDouble("longitude", 0.0),
+                        timestamp = pObj.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+            tracks.add(
+                TrackBackup(
+                    name = tObj.optString("name", ""),
+                    startTime = tObj.optLong("startTime", System.currentTimeMillis()),
+                    endTime = if (tObj.has("endTime")) tObj.optLong("endTime") else null,
+                    distanceMeters = tObj.optDouble("distanceMeters", 0.0),
+                    points = trackPoints
+                )
+            )
+        }
+
+        return BackupData(
+            points = points,
+            categories = categories.filter { it.isNotBlank() }.distinct(),
+            tracks = tracks
+        )
     }
 
     fun writeToUri(context: Context, uri: Uri, json: String) {
