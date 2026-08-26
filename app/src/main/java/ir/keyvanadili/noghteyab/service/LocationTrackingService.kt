@@ -11,6 +11,7 @@ import ir.keyvanadili.noghteyab.R
 import ir.keyvanadili.noghteyab.data.AppDatabase
 import ir.keyvanadili.noghteyab.data.TrackPointEntity
 import ir.keyvanadili.noghteyab.ui.MainActivity
+import ir.keyvanadili.noghteyab.util.TrackUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +23,12 @@ class LocationTrackingService : Service() {
     private lateinit var fusedClient: FusedLocationProviderClient
     private var callback: LocationCallback? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
+
+    // State used to filter GPS noise out of recorded tracks.
+    private var recordingSessionTrackId: Long? = null
+    private var lastRecordedLat: Double? = null
+    private var lastRecordedLng: Double? = null
+    private var lastRecordedTime: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -43,7 +50,7 @@ class LocationTrackingService : Service() {
                 LocationRepository.update(location)
 
                 val trackId = LocationRepository.currentTrackId.value
-                if (LocationRepository.isRecording.value && trackId != null) {
+                if (LocationRepository.isRecording.value && trackId != null && shouldRecordPoint(location, trackId)) {
                     serviceScope.launch {
                         val dao = AppDatabase.getInstance(applicationContext).trackDao()
                         dao.insertPoint(
@@ -61,6 +68,47 @@ class LocationTrackingService : Service() {
         fusedClient.requestLocationUpdates(request, callback!!, mainLooper)
 
         return START_STICKY
+    }
+
+    /**
+     * Filters out GPS noise so recorded tracks come out smooth instead of jagged:
+     * - drops low-accuracy fixes (common near tall buildings / indoors)
+     * - drops fixes too close to the last recorded point (jitter while stationary/slow)
+     * - but always records at least every [MAX_STATIONARY_INTERVAL_MS] so real stops still show up
+     */
+    private fun shouldRecordPoint(location: android.location.Location, trackId: Long): Boolean {
+        if (recordingSessionTrackId != trackId) {
+            // New recording session: reset filter state.
+            recordingSessionTrackId = trackId
+            lastRecordedLat = null
+            lastRecordedLng = null
+            lastRecordedTime = 0L
+        }
+
+        if (location.hasAccuracy() && location.accuracy > MIN_ACCURACY_METERS) {
+            return false
+        }
+
+        val now = System.currentTimeMillis()
+        val prevLat = lastRecordedLat
+        val prevLng = lastRecordedLng
+
+        val movedEnough = if (prevLat != null && prevLng != null) {
+            TrackUtil.haversineMeters(
+                prevLat, prevLng, location.latitude, location.longitude
+            ) >= MIN_DISTANCE_METERS
+        } else {
+            true
+        }
+        val longEnoughSinceLastPoint = (now - lastRecordedTime) >= MAX_STATIONARY_INTERVAL_MS
+
+        if (movedEnough || longEnoughSinceLastPoint) {
+            lastRecordedLat = location.latitude
+            lastRecordedLng = location.longitude
+            lastRecordedTime = now
+            return true
+        }
+        return false
     }
 
     override fun onDestroy() {
@@ -98,5 +146,8 @@ class LocationTrackingService : Service() {
 
     companion object {
         const val NOTIF_ID = 42
+        private const val MIN_ACCURACY_METERS = 25f
+        private const val MIN_DISTANCE_METERS = 8.0
+        private const val MAX_STATIONARY_INTERVAL_MS = 30_000L
     }
 }
