@@ -18,6 +18,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks ORDER BY startTime DESC")
     fun getAllTracks(): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM tracks ORDER BY startTime DESC")
+    suspend fun getAllTracksOnce(): List<TrackEntity>
+
     @Query("SELECT * FROM track_points WHERE trackId = :trackId ORDER BY timestamp")
     suspend fun getPointsOnce(trackId: Long): List<TrackPointEntity>
 
