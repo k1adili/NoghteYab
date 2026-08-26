@@ -68,13 +68,13 @@ object GpxKmlExporter {
 
     fun shareGpx(context: Context, track: TrackEntity, points: List<TrackPointEntity>) {
         val content = buildGpx(track, points)
-        val uri = writeShareableFile(context, "${sanitizeFileName(track.name)}.gpx", content)
+        val uri = writeShareableFile(context, exportFileName(track, "gpx"), content)
         shareFile(context, uri, "application/gpx+xml")
     }
 
     fun shareKml(context: Context, track: TrackEntity, points: List<TrackPointEntity>) {
         val content = buildKml(track, points)
-        val uri = writeShareableFile(context, "${sanitizeFileName(track.name)}.kml", content)
+        val uri = writeShareableFile(context, exportFileName(track, "kml"), content)
         shareFile(context, uri, "application/vnd.google-earth.kml+xml")
     }
 
@@ -91,6 +91,10 @@ object GpxKmlExporter {
         context.startActivity(chooser)
     }
 
-    private fun sanitizeFileName(name: String): String =
-        name.replace(Regex("[^A-Za-z0-9آ-ی_\\- ]"), "_").ifBlank { "track" }
+    private val fileNameFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
+
+    /** ASCII-only file name, independent of the (Persian) display name shown inside the app. */
+    private fun exportFileName(track: TrackEntity, extension: String): String {
+        return "track_${fileNameFormat.format(Date(track.startTime))}.$extension"
+    }
 }
