@@ -295,6 +295,8 @@ fun HomeScreen(
         flow.collectLatest { points = it }
     }
 
+    val accuracyText = location?.takeIf { it.hasAccuracy() }?.let { "دقت: %.0f متر".format(it.accuracy) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -356,6 +358,15 @@ fun HomeScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            if (accuracyText != null) {
+                                Text(
+                                    accuracyText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         } else {
                             Text(
                                 if (isTracking) "در حال دریافت..." else "غیرفعال",
@@ -401,6 +412,15 @@ fun HomeScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (isRecording && accuracyText != null) {
+                            Text(
+                                accuracyText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ir.keyvanadili.noghteyab.BuildConfig
 import ir.keyvanadili.noghteyab.data.AppDatabase
 import ir.keyvanadili.noghteyab.data.CategoryEntity
 import ir.keyvanadili.noghteyab.ui.theme.AppButtonShape
@@ -155,7 +156,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = "Version 2.1",
+                text = "Version ${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
