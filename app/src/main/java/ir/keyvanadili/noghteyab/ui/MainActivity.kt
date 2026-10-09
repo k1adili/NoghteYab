@@ -287,6 +287,8 @@ fun HomeScreen(
     val isTracking by LocationRepository.isTracking.collectAsStateWithLifecycle()
     val isRecording by LocationRepository.isRecording.collectAsStateWithLifecycle()
     val location by LocationRepository.currentLocation.collectAsStateWithLifecycle()
+    val satellitesUsed by LocationRepository.satellitesUsed.collectAsStateWithLifecycle()
+    val satellitesTotal by LocationRepository.satellitesTotal.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(query) {
@@ -295,7 +297,13 @@ fun HomeScreen(
         flow.collectLatest { points = it }
     }
 
-    val accuracyText = location?.takeIf { it.hasAccuracy() }?.let { "دقت: %.0f متر".format(it.accuracy) }
+    // One compact line: accuracy + satellites used/visible, e.g. "دقت 5م · ماهواره 12/28"
+    val signalText: String? = location?.let { loc ->
+        val parts = mutableListOf<String>()
+        if (loc.hasAccuracy()) parts.add("دقت %.0fم".format(loc.accuracy))
+        if (satellitesTotal > 0) parts.add("ماهواره $satellitesUsed/$satellitesTotal")
+        parts.joinToString(" · ").ifEmpty { null }
+    }
 
     Scaffold(
         topBar = {
@@ -358,9 +366,9 @@ fun HomeScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (accuracyText != null) {
+                            if (signalText != null) {
                                 Text(
-                                    accuracyText,
+                                    signalText,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1,
@@ -412,9 +420,9 @@ fun HomeScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (isRecording && accuracyText != null) {
+                        if (isRecording && signalText != null) {
                             Text(
-                                accuracyText,
+                                signalText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
