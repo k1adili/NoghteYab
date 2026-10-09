@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -297,12 +298,12 @@ fun HomeScreen(
         flow.collectLatest { points = it }
     }
 
-    // One compact line: accuracy + satellites used/visible, e.g. "دقت 5م · ماهواره 12/28"
+    // Accuracy + satellites used/visible, shown on its own line under the cards
     val signalText: String? = location?.let { loc ->
         val parts = mutableListOf<String>()
-        if (loc.hasAccuracy()) parts.add("دقت %.0fم".format(loc.accuracy))
-        if (satellitesTotal > 0) parts.add("ماهواره $satellitesUsed/$satellitesTotal")
-        parts.joinToString(" · ").ifEmpty { null }
+        if (loc.hasAccuracy()) parts.add("دقت: %.0f متر".format(loc.accuracy))
+        if (satellitesTotal > 0) parts.add("ماهواره: $satellitesUsed از $satellitesTotal")
+        parts.joinToString("   |   ").ifEmpty { null }
     }
 
     Scaffold(
@@ -366,15 +367,6 @@ fun HomeScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (signalText != null) {
-                                Text(
-                                    signalText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
                         } else {
                             Text(
                                 if (isTracking) "در حال دریافت..." else "غیرفعال",
@@ -420,17 +412,22 @@ fun HomeScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (isRecording && signalText != null) {
-                            Text(
-                                signalText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
                 }
+            }
+
+            // Shared signal line (accuracy + satellites) for both location and recording
+            if ((isTracking || isRecording) && signalText != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    signalText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(Modifier.height(16.dp))
